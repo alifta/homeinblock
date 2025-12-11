@@ -1,0 +1,68 @@
+FROM python:3.12-alpine3.20
+LABEL maintainer="homeinblock.com"
+
+ENV PYTHONUNBUFFERED=1
+
+# Create user early and use throughout build
+RUN adduser \
+    --disabled-password \
+    --no-create-home \
+    django-user
+
+# Update packages and install security patches
+RUN apk update && apk upgrade && \
+    apk add --update --no-cache \
+        postgresql-client \
+        jpeg-dev \
+        tini && \
+    apk add --update --no-cache --virtual .tmp-build-deps \
+        gcc \
+        musl-dev \
+        postgresql-dev \
+        zlib-dev \
+        linux-headers
+
+# Copy requirements first for better caching
+COPY --chown=django-user:django-user ./requirements.txt /tmp/requirements.txt
+COPY --chown=django-user:django-user ./requirements.dev.txt /tmp/requirements.dev.txt
+
+# Create virtual environment with proper ownership
+RUN python -m venv /py && \
+    chown -R django-user:django-user /py
+
+# Switch to non-root user for pip installs
+USER django-user
+
+ARG DEV=false
+RUN /py/bin/pip install --upgrade pip --no-cache-dir && \
+    /py/bin/pip install -r /tmp/requirements.txt --no-cache-dir && \
+    if [ $DEV = "true" ]; \
+        then /py/bin/pip install -r /tmp/requirements.dev.txt --no-cache-dir ; \
+    fi
+
+# Switch back to root briefly for cleanup and directory setup
+USER root
+RUN rm -rf /tmp && \
+    apk del .tmp-build-deps && \
+    mkdir -p /vol/web/media && \
+    mkdir -p /vol/web/static && \
+    chown -R django-user:django-user /vol && \
+    chmod -R 755 /vol
+
+# Copy application files
+COPY --chown=django-user:django-user ./scripts /scripts
+COPY --chown=django-user:django-user ./app /app
+
+RUN chmod -R +x /scripts
+
+WORKDIR /app
+EXPOSE 8000
+
+ENV PATH="/scripts:/py/bin:$PATH"
+
+# Switch to non-root user for runtime
+USER django-user
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["run.sh"]
