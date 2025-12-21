@@ -41,37 +41,49 @@ docker compose down --volumes
 docker compose up
 ```
 
-## Course Documentation
+## AWS
 
-This section contains supplementary documentation for the course steps.
+To list AWS profiles saved on the computer, run:
 
-### AWS CLI
-
-#### AWS CLI Authentication
-
-This course uses [aws-vault](https://github.com/99designs/aws-vault) to authenticate with the AWS CLI in the terminal.
-
-To authenticate:
-
-```
-aws-vault exec PROFILE --duration=8h
-```
-
-Replace `PROFILE` with the name of the profile.
-
-To list profiles, run:
-
-```
+```sh
 aws-vault list
 ```
 
-#### Task Exec
+To authenticate to the specific profile (replace `<profile_name>` with the name of the profile):
+
+```sh
+aws-vault exec <profile_name> --duration=8h
+```
+
+To initialize terraform (after authenticating using `aws-vault`), run:
+
+```sh
+docker compose run --rm terraform -chdir=setup init
+```
+
+To automatically format the terraform files, run:
+
+```sh
+docker compose run --rm terraform -chdir=setup fmt
+```
+
+To validate whether there is no error in terraform files, run:
+
+```sh
+docker compose run --rm terraform -chdir=setup validate
+```
+
+To initialize terraform, run:
+
+```sh
+docker compose run --rm terraform -chdir=deploy init
+```
 
 [ECS Exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html) is used for manually running commands directly on the running containers.
 
 To get shell access to the `ecs` task:
 
-```
+```sh
 aws ecs execute-command --region REGION --cluster CLUSTER_NAME --task TASK_ID --container CONTAINER_NAME --interactive --command "/bin/sh"
 ```
 
